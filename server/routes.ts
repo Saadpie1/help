@@ -3,6 +3,9 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertProjectSchema, insertActivitySchema } from "@shared/schema";
 import { z } from "zod";
+import { spawn } from "child_process";
+import fs from "fs/promises";
+import path from "path";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Projects routes
@@ -269,17 +272,201 @@ async function generateContentFromTopic(topic: string, category: string) {
   };
 }
 
-async function generateVideoFromScript(topic: string, metadata: any) {
-  // This would integrate with free video generation tools:
-  // - OpenAI TTS (free tier)
-  // - Festival/eSpeak for text-to-speech
-  // - FFmpeg for video assembly
-  // - Stable Diffusion for visuals
+async function generateVideoFromScript(topic: string, metadata: any, projectId: number): Promise<{ videoUrl: string; thumbnailUrl: string }> {
+  try {
+    // Generate script content
+    const script = generateVideoScript(topic, metadata);
+    
+    // Create audio using text-to-speech (using system TTS for free)
+    const audioPath = await generateAudio(script, projectId);
+    
+    // Create video with visuals
+    const videoPath = await createVideoWithFFmpeg(audioPath, topic, projectId);
+    
+    // Generate thumbnail
+    const thumbnailPath = await generateThumbnail(topic, projectId);
+    
+    return {
+      videoUrl: `/generated/video_${projectId}.mp4`,
+      thumbnailUrl: `/thumbnails/thumb_${projectId}.jpg`
+    };
+  } catch (error) {
+    console.error('Video generation error:', error);
+    throw new Error('Failed to generate video');
+  }
+}
+
+function generateVideoScript(topic: string, metadata: any): string {
+  return `Welcome to our channel! Today we're diving into ${topic}.
+
+Introduction:
+${metadata?.title || topic} is an important topic that many people want to understand better. In this video, we'll cover everything you need to know.
+
+Main Content:
+Let's start with the basics. ${topic} involves several key concepts that we'll explore step by step. 
+
+First, we'll look at the fundamental principles. These form the foundation of everything we'll discuss.
+
+Next, we'll examine practical applications. Understanding how to apply these concepts in real-world scenarios is crucial.
+
+We'll also cover best practices and common mistakes to avoid. Learning from others' experiences can save you time and effort.
+
+Advanced Topics:
+For those ready to go deeper, we'll explore more advanced aspects of ${topic}. These techniques can help you take your understanding to the next level.
+
+Conclusion:
+That wraps up our comprehensive guide to ${topic}. Remember to practice what you've learned and don't hesitate to explore further.
+
+Thanks for watching! Please like and subscribe for more content like this. See you in the next video!`;
+}
+
+async function generateAudio(script: string, projectId: number): Promise<string> {
+  const audioPath = path.join(process.cwd(), 'public', 'generated', `audio_${projectId}.wav`);
   
-  return {
-    videoUrl: `/generated/video_${Date.now()}.mp4`,
-    thumbnailUrl: `/thumbnails/thumb_${Date.now()}.jpg`
-  };
+  // Use espeak (free text-to-speech) to generate audio
+  return new Promise((resolve, reject) => {
+    const espeak = spawn('espeak', [
+      '-s', '150', // Speech rate (words per minute)
+      '-v', 'en', // Voice (English)
+      '-w', audioPath, // Output file
+      script
+    ]);
+    
+    espeak.on('close', (code) => {
+      if (code === 0) {
+        resolve(audioPath);
+      } else {
+        // Fallback: create a silent audio file if espeak fails
+        const ffmpeg = spawn('ffmpeg', [
+          '-f', 'lavfi',
+          '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',
+          '-t', '30', // 30 seconds duration
+          '-y',
+          audioPath
+        ]);
+        
+        ffmpeg.on('close', (fallbackCode) => {
+          if (fallbackCode === 0) {
+            resolve(audioPath);
+          } else {
+            reject(new Error('Failed to generate audio'));
+          }
+        });
+      }
+    });
+    
+    espeak.on('error', () => {
+      // Fallback if espeak is not available
+      const ffmpeg = spawn('ffmpeg', [
+        '-f', 'lavfi',
+        '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',
+        '-t', '30',
+        '-y',
+        audioPath
+      ]);
+      
+      ffmpeg.on('close', (code) => {
+        if (code === 0) {
+          resolve(audioPath);
+        } else {
+          reject(new Error('Failed to generate audio'));
+        }
+      });
+    });
+  });
+}
+
+async function createVideoWithFFmpeg(audioPath: string, topic: string, projectId: number): Promise<string> {
+  const videoPath = path.join(process.cwd(), 'public', 'generated', `video_${projectId}.mp4`);
+  
+  return new Promise((resolve, reject) => {
+    // Create a simple video with colored background and text overlay
+    const ffmpeg = spawn('ffmpeg', [
+      '-f', 'lavfi',
+      '-i', 'color=c=0x2563eb:size=1920x1080:duration=30', // Blue background
+      '-i', audioPath,
+      '-vf', `drawtext=fontsize=48:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2:text='${topic.replace(/'/g, "\\'")}':fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf`,
+      '-c:v', 'libx264',
+      '-c:a', 'aac',
+      '-shortest',
+      '-y',
+      videoPath
+    ]);
+    
+    ffmpeg.on('close', (code) => {
+      if (code === 0) {
+        resolve(videoPath);
+      } else {
+        reject(new Error('Failed to create video'));
+      }
+    });
+    
+    ffmpeg.on('error', (error) => {
+      reject(error);
+    });
+  });
+}
+
+async function generateThumbnail(topic: string, projectId: number): Promise<string> {
+  const thumbnailPath = path.join(process.cwd(), 'public', 'thumbnails', `thumb_${projectId}.jpg`);
+  
+  return new Promise((resolve, reject) => {
+    // Create thumbnail using ImageMagick
+    const convert = spawn('convert', [
+      '-size', '1280x720',
+      'xc:#2563eb', // Blue background
+      '-gravity', 'center',
+      '-fill', 'white',
+      '-pointsize', '72',
+      '-font', 'DejaVu-Sans-Bold',
+      '-annotate', '0', topic,
+      thumbnailPath
+    ]);
+    
+    convert.on('close', (code) => {
+      if (code === 0) {
+        resolve(thumbnailPath);
+      } else {
+        // Fallback with FFmpeg if ImageMagick fails
+        const ffmpeg = spawn('ffmpeg', [
+          '-f', 'lavfi',
+          '-i', 'color=c=0x2563eb:size=1280x720:duration=1',
+          '-vf', `drawtext=fontsize=72:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2:text='${topic.replace(/'/g, "\\'")}':fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf`,
+          '-frames:v', '1',
+          '-y',
+          thumbnailPath
+        ]);
+        
+        ffmpeg.on('close', (fallbackCode) => {
+          if (fallbackCode === 0) {
+            resolve(thumbnailPath);
+          } else {
+            reject(new Error('Failed to generate thumbnail'));
+          }
+        });
+      }
+    });
+    
+    convert.on('error', () => {
+      // Fallback with FFmpeg
+      const ffmpeg = spawn('ffmpeg', [
+        '-f', 'lavfi',
+        '-i', 'color=c=0x2563eb:size=1280x720:duration=1',
+        '-vf', `drawtext=fontsize=72:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2:text='${topic.replace(/'/g, "\\'")}':fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf`,
+        '-frames:v', '1',
+        '-y',
+        thumbnailPath
+      ]);
+      
+      ffmpeg.on('close', (code) => {
+        if (code === 0) {
+          resolve(thumbnailPath);
+        } else {
+          reject(new Error('Failed to generate thumbnail'));
+        }
+      });
+    });
+  });
 }
 
 function extractKeywords(topic: string): string[] {
