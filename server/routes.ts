@@ -169,24 +169,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update project status to processing
       await storage.updateProject(projectId, { status: "processing", progress: 60 });
 
-      // Simulate video generation process using free tools
+      // Generate video using free tools
       setTimeout(async () => {
-        // Generate script and video
-        const videoContent = await generateVideoFromScript(project.topic, project.metadata);
-        
-        await storage.updateProject(projectId, { 
-          status: "complete", 
-          progress: 100,
-          videoUrl: `/generated/${projectId}.mp4`,
-          thumbnailUrl: `/thumbnails/${projectId}.jpg`
-        });
-        
-        await storage.createActivity({
-          type: "generate",
-          message: `Video generation completed for ${project.title}`,
-          projectId: projectId,
-        });
-      }, 8000);
+        try {
+          console.log('Starting video generation for project:', projectId);
+          
+          // Generate script and video
+          const videoContent = await generateVideoFromScript(project.topic, project.metadata, projectId);
+          
+          await storage.updateProject(projectId, { 
+            status: "complete", 
+            progress: 100,
+            videoUrl: videoContent.videoUrl,
+            thumbnailUrl: videoContent.thumbnailUrl
+          });
+          
+          await storage.createActivity({
+            type: "generate",
+            message: `Video generation completed for ${project.title}`,
+            projectId: projectId,
+          });
+          
+          console.log('Video generation completed successfully');
+        } catch (error: any) {
+          console.error('Video generation failed:', error);
+          
+          await storage.updateProject(projectId, { 
+            status: "draft", 
+            progress: 0
+          });
+          
+          await storage.createActivity({
+            type: "error",
+            message: `Video generation failed for ${project.title}: ${error?.message || 'Unknown error'}`,
+            projectId: projectId,
+          });
+        }
+      }, 3000);
 
       res.json({ message: "Video generation started" });
     } catch (error) {
@@ -297,27 +316,84 @@ async function generateVideoFromScript(topic: string, metadata: any, projectId: 
 }
 
 function generateVideoScript(topic: string, metadata: any): string {
-  return `Welcome to our channel! Today we're diving into ${topic}.
+  const keywords = extractKeywords(topic);
+  const categoryContent = generateCategorySpecificContent(topic, metadata?.category || 'Technology');
+  
+  return `Welcome to our channel! I'm excited to share this comprehensive guide on ${topic}.
 
-Introduction:
-${metadata?.title || topic} is an important topic that many people want to understand better. In this video, we'll cover everything you need to know.
+${categoryContent.introduction}
 
-Main Content:
-Let's start with the basics. ${topic} involves several key concepts that we'll explore step by step. 
+Let me break this down into digestible sections that will help you master ${topic}.
 
-First, we'll look at the fundamental principles. These form the foundation of everything we'll discuss.
+Section One: Getting Started
+${categoryContent.section1}
 
-Next, we'll examine practical applications. Understanding how to apply these concepts in real-world scenarios is crucial.
+Section Two: Core Concepts  
+${categoryContent.section2}
 
-We'll also cover best practices and common mistakes to avoid. Learning from others' experiences can save you time and effort.
+Section Three: Practical Applications
+${categoryContent.section3}
 
-Advanced Topics:
-For those ready to go deeper, we'll explore more advanced aspects of ${topic}. These techniques can help you take your understanding to the next level.
+Pro Tips and Best Practices:
+${categoryContent.tips}
+
+Common Mistakes to Avoid:
+${categoryContent.mistakes}
+
+Advanced Techniques:
+${categoryContent.advanced}
 
 Conclusion:
-That wraps up our comprehensive guide to ${topic}. Remember to practice what you've learned and don't hesitate to explore further.
+${categoryContent.conclusion}
 
-Thanks for watching! Please like and subscribe for more content like this. See you in the next video!`;
+That's everything you need to know about ${topic}. If this helped you, please give it a thumbs up and subscribe for more content. Drop your questions in the comments below, and I'll see you in the next video!`;
+}
+
+function generateCategorySpecificContent(topic: string, category: string) {
+  const templates = {
+    Technology: {
+      introduction: `${topic} is revolutionizing how we approach modern technology. Whether you're a beginner or looking to expand your skills, this guide covers everything from basics to advanced techniques.`,
+      section1: `First, let's understand what ${topic} actually is and why it matters in today's digital landscape. We'll start with the fundamental concepts that form the foundation.`,
+      section2: `Now that we understand the basics, let's explore the core principles that make ${topic} so powerful and widely adopted across industries.`,
+      section3: `Here's where it gets practical. I'll show you real-world examples of how ${topic} is being used to solve actual problems and create value.`,
+      tips: `Always start with the documentation. Keep your implementations simple and readable. Test frequently and iterate based on feedback.`,
+      mistakes: `Don't overcomplicate your initial approach. Avoid skipping the learning fundamentals. Never ignore security considerations.`,
+      advanced: `For those ready to go deeper, we'll explore optimization techniques, advanced patterns, and integration strategies that professionals use.`,
+      conclusion: `${topic} opens up incredible possibilities. Start with small projects, practice regularly, and don't be afraid to experiment.`
+    },
+    Education: {
+      introduction: `Learning ${topic} effectively requires the right approach and understanding. This comprehensive guide will take you from beginner to confident practitioner.`,
+      section1: `Let's establish a strong foundation by understanding the key concepts and terminology you'll encounter throughout your ${topic} journey.`,
+      section2: `Building on our foundation, we'll explore the essential skills and knowledge areas that every learner should master.`,
+      section3: `Theory meets practice as we work through examples and exercises that demonstrate real-world application of ${topic} principles.`,
+      tips: `Set clear learning goals. Practice consistently. Connect new knowledge to what you already know. Use multiple learning resources.`,
+      mistakes: `Don't rush through fundamentals. Avoid passive learning without practice. Don't study in isolation without seeking feedback.`,
+      advanced: `Advanced learners can explore specialized techniques, research methodologies, and ways to teach others what they've learned.`,
+      conclusion: `Mastering ${topic} is a journey, not a destination. Stay curious, keep practicing, and remember that everyone learns at their own pace.`
+    },
+    Entertainment: {
+      introduction: `Get ready for an amazing exploration of ${topic}! We're diving into the most fascinating aspects that will entertain and inform you.`,
+      section1: `Let's start with the most interesting and surprising facts about ${topic} that most people don't know.`,
+      section2: `Here are the coolest features and most impressive examples that showcase why ${topic} is so captivating.`,
+      section3: `Now for the fun part - let's see ${topic} in action with some incredible examples and demonstrations.`,
+      tips: `Keep an open mind. Look for connections to things you enjoy. Share interesting discoveries with friends.`,
+      mistakes: `Don't take everything too seriously. Avoid getting overwhelmed by information. Don't forget to have fun while learning.`,
+      advanced: `For enthusiasts, we'll explore the deeper mysteries and most impressive achievements in the world of ${topic}.`,
+      conclusion: `${topic} continues to amaze and inspire. Keep exploring, stay curious, and remember that the best discoveries often come from asking simple questions.`
+    },
+    Lifestyle: {
+      introduction: `Transform your daily life with ${topic}. This practical guide shows you how to integrate powerful concepts into your everyday routine.`,
+      section1: `Let's start with simple changes you can make today that will have an immediate positive impact on your ${topic} journey.`,
+      section2: `Building sustainable habits around ${topic} requires understanding the psychology and practical steps that actually work.`,
+      section3: `See how real people have successfully implemented ${topic} strategies and the results they've achieved.`,
+      tips: `Start small and build consistency. Track your progress. Celebrate small wins. Adjust strategies based on what works for you.`,
+      mistakes: `Don't try to change everything at once. Avoid comparing your journey to others. Don't give up after temporary setbacks.`,
+      advanced: `Advanced practitioners can explore optimization techniques, long-term planning strategies, and ways to help others on their journey.`,
+      conclusion: `${topic} is about creating a life you love. Be patient with yourself, stay consistent, and remember that small changes compound over time.`
+    }
+  };
+  
+  return templates[category as keyof typeof templates] || templates.Technology;
 }
 
 async function generateAudio(script: string, projectId: number): Promise<string> {

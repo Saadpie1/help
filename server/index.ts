@@ -6,6 +6,10 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Serve static files for generated videos and thumbnails
+app.use('/generated', express.static('public/generated'));
+app.use('/thumbnails', express.static('public/thumbnails'));
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;

@@ -195,15 +195,79 @@ export default function VideoCreator() {
 
                 {selectedProject && (
                   <div className="mt-6 pt-6 border-t space-y-4">
-                    <div className="bg-blue-50 p-4 rounded-lg">
-                      <h4 className="font-medium text-blue-900 mb-2">Automation Pipeline</h4>
-                      <div className="space-y-2 text-sm text-blue-800">
-                        <p>1. <strong>Generate Content:</strong> AI creates title, description, tags, keywords</p>
-                        <p>2. <strong>Generate Video:</strong> Creates video file with TTS and visuals</p>
-                        <p>3. <strong>Generate Thumbnail:</strong> Creates eye-catching thumbnail</p>
-                        <p>4. <strong>Schedule/Upload:</strong> Post to YouTube automatically</p>
-                      </div>
-                    </div>
+                    {/* Show Generated Video Results */}
+                    {(() => {
+                      const project = projects?.find(p => p.id === selectedProject);
+                      return project?.status === "complete" && project?.videoUrl ? (
+                        <div className="bg-green-50 border border-green-200 p-4 rounded-lg">
+                          <h4 className="font-medium text-green-900 mb-3">✅ Video Generated Successfully!</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Video Preview */}
+                            <div>
+                              <h5 className="font-medium text-gray-900 mb-2">Generated Video</h5>
+                              <video 
+                                controls 
+                                className="w-full rounded-lg border"
+                                poster={project.thumbnailUrl || undefined}
+                              >
+                                <source src={project.videoUrl} type="video/mp4" />
+                                Your browser does not support the video tag.
+                              </video>
+                              <div className="mt-2 flex space-x-2">
+                                <a 
+                                  href={project.videoUrl} 
+                                  download={`${project.title}.mp4`}
+                                  className="text-sm text-blue-600 hover:text-blue-800"
+                                >
+                                  Download Video
+                                </a>
+                                {project.thumbnailUrl && (
+                                  <a 
+                                    href={project.thumbnailUrl} 
+                                    download={`${project.title}-thumbnail.jpg`}
+                                    className="text-sm text-blue-600 hover:text-blue-800"
+                                  >
+                                    Download Thumbnail
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Generated Metadata */}
+                            <div>
+                              <h5 className="font-medium text-gray-900 mb-2">AI-Generated Metadata</h5>
+                              <div className="space-y-2 text-sm">
+                                <div>
+                                  <strong>Title:</strong> {project.metadata?.title || project.title}
+                                </div>
+                                <div>
+                                  <strong>Tags:</strong> {project.metadata?.tags?.slice(0, 5).join(', ')}
+                                </div>
+                                <div>
+                                  <strong>Keywords:</strong> {project.metadata?.keywords?.join(', ')}
+                                </div>
+                                <div className="max-h-32 overflow-y-auto">
+                                  <strong>Description:</strong>
+                                  <p className="text-gray-600 mt-1 whitespace-pre-line">
+                                    {project.metadata?.description?.substring(0, 200)}...
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-blue-50 p-4 rounded-lg">
+                          <h4 className="font-medium text-blue-900 mb-2">Automation Pipeline</h4>
+                          <div className="space-y-2 text-sm text-blue-800">
+                            <p>1. <strong>Generate Content:</strong> AI creates title, description, tags, keywords</p>
+                            <p>2. <strong>Generate Video:</strong> Creates video file with TTS and visuals</p>
+                            <p>3. <strong>Generate Thumbnail:</strong> Creates eye-catching thumbnail</p>
+                            <p>4. <strong>Schedule/Upload:</strong> Post to YouTube automatically</p>
+                          </div>
+                        </div>
+                      );
+                    })()}
                     
                     <div className="flex space-x-3">
                       <Button
