@@ -197,11 +197,17 @@ export class MemStorage implements IStorage {
     const id = this.currentProjectId++;
     const project: Project = {
       id,
-      ...insertProject,
+      title: insertProject.title,
+      topic: insertProject.topic,
+      status: insertProject.status || "draft",
+      category: insertProject.category,
+      videoLength: insertProject.videoLength,
+      scheduledDate: insertProject.scheduledDate || null,
       progress: 0,
       thumbnailUrl: null,
       videoUrl: null,
       youtubeId: null,
+      metadata: insertProject.metadata as Project['metadata'] || null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -245,7 +251,8 @@ export class MemStorage implements IStorage {
     const updatedStatus: SystemStatus = {
       id,
       service,
-      ...status,
+      status: status.status,
+      message: status.message || null,
       lastChecked: new Date(),
     };
     
@@ -262,7 +269,9 @@ export class MemStorage implements IStorage {
   async createActivity(activity: InsertActivity): Promise<Activity> {
     const newActivity: Activity = {
       id: this.currentActivityId++,
-      ...activity,
+      type: activity.type,
+      message: activity.message,
+      projectId: activity.projectId || null,
       createdAt: new Date(),
     };
     this.activities.push(newActivity);

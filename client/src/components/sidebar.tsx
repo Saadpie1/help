@@ -17,6 +17,7 @@ const navigation = [
   { name: "Video Creator", href: "/video-creator", icon: Video },
   { name: "Thumbnail Studio", href: "/thumbnail-studio", icon: Image },
   { name: "Content Optimizer", href: "/content-optimizer", icon: Hash },
+  { name: "Content Preview", href: "/content-preview", icon: Play },
   { name: "Upload Manager", href: "/upload-manager", icon: Upload },
   { name: "Scheduler", href: "/scheduler", icon: Calendar },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },

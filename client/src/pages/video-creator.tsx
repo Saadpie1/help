@@ -21,6 +21,27 @@ export default function VideoCreator() {
     queryKey: ["/api/projects"],
   });
 
+  const generateContentMutation = useMutation({
+    mutationFn: async (projectId: number) => {
+      const response = await apiRequest("POST", "/api/generate-content", { projectId });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      toast({
+        title: "Success",
+        description: "AI content generation started! This will create title, description, tags, and keywords.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to start content generation. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const generateVideoMutation = useMutation({
     mutationFn: async (projectId: number) => {
       const response = await apiRequest("POST", "/api/generate-video", { projectId });
@@ -30,7 +51,7 @@ export default function VideoCreator() {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       toast({
         title: "Success",
-        description: "Video generation started! Check the progress in your dashboard.",
+        description: "Video generation started! This will create the actual video file and thumbnail.",
       });
     },
     onError: () => {
@@ -81,8 +102,12 @@ export default function VideoCreator() {
     }
   };
 
-  const canGenerate = (project: Project) => {
-    return project.status === "draft" || project.status === "complete";
+  const canGenerateContent = (project: Project) => {
+    return project.status === "draft";
+  };
+
+  const canGenerateVideo = (project: Project) => {
+    return project.status === "processing" && project.progress >= 50;
   };
 
   return (
@@ -169,20 +194,44 @@ export default function VideoCreator() {
                 )}
 
                 {selectedProject && (
-                  <div className="mt-6 pt-6 border-t">
-                    <Button
-                      onClick={() => generateVideoMutation.mutate(selectedProject)}
-                      disabled={
-                        generateVideoMutation.isPending ||
-                        !projects?.find(p => p.id === selectedProject && canGenerate(p))
-                      }
-                      className="bg-primary hover:bg-primary/90"
-                    >
-                      {generateVideoMutation.isPending ? "Generating..." : "Generate Video"}
-                    </Button>
-                    {selectedProject && !canGenerate(projects?.find(p => p.id === selectedProject)!) && (
-                      <p className="text-sm text-gray-500 mt-2">
-                        This project is currently processing or already complete.
+                  <div className="mt-6 pt-6 border-t space-y-4">
+                    <div className="bg-blue-50 p-4 rounded-lg">
+                      <h4 className="font-medium text-blue-900 mb-2">Automation Pipeline</h4>
+                      <div className="space-y-2 text-sm text-blue-800">
+                        <p>1. <strong>Generate Content:</strong> AI creates title, description, tags, keywords</p>
+                        <p>2. <strong>Generate Video:</strong> Creates video file with TTS and visuals</p>
+                        <p>3. <strong>Generate Thumbnail:</strong> Creates eye-catching thumbnail</p>
+                        <p>4. <strong>Schedule/Upload:</strong> Post to YouTube automatically</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex space-x-3">
+                      <Button
+                        onClick={() => generateContentMutation.mutate(selectedProject)}
+                        disabled={
+                          generateContentMutation.isPending ||
+                          !projects?.find(p => p.id === selectedProject && canGenerateContent(p))
+                        }
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        {generateContentMutation.isPending ? "Generating..." : "1. Generate Content"}
+                      </Button>
+                      
+                      <Button
+                        onClick={() => generateVideoMutation.mutate(selectedProject)}
+                        disabled={
+                          generateVideoMutation.isPending ||
+                          !projects?.find(p => p.id === selectedProject && canGenerateVideo(p))
+                        }
+                        className="bg-primary hover:bg-primary/90"
+                      >
+                        {generateVideoMutation.isPending ? "Generating..." : "2. Generate Video"}
+                      </Button>
+                    </div>
+                    
+                    {selectedProject && !canGenerateContent(projects?.find(p => p.id === selectedProject)!) && (
+                      <p className="text-sm text-gray-500">
+                        Start with content generation for draft projects, then proceed to video generation.
                       </p>
                     )}
                   </div>

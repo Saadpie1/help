@@ -112,8 +112,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Video generation route
-  app.post("/api/generate-video", async (req, res) => {
+  // AI Content Generation route
+  app.post("/api/generate-content", async (req, res) => {
     try {
       const { projectId } = req.body;
       const project = await storage.getProject(projectId);
@@ -124,9 +124,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update project status to processing
       await storage.updateProject(projectId, { status: "processing", progress: 10 });
 
-      // Simulate video generation process
-      // In a real implementation, this would trigger actual video generation services
+      // Simulate AI content generation process
+      // This would integrate with free AI services like Hugging Face, OpenAI via browser, or local models
       setTimeout(async () => {
+        // Generate optimized content based on the project topic
+        const generatedContent = await generateContentFromTopic(project.topic, project.category);
+        
+        await storage.updateProject(projectId, { 
+          status: "processing", 
+          progress: 50,
+          metadata: {
+            title: generatedContent.title,
+            description: generatedContent.description,
+            tags: generatedContent.tags,
+            keywords: generatedContent.keywords
+          }
+        });
+        
+        await storage.createActivity({
+          type: "generate",
+          message: `Content generated for ${project.title}`,
+          projectId: projectId,
+        });
+      }, 2000);
+
+      res.json({ message: "Content generation started" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to start content generation" });
+    }
+  });
+
+  // Video generation route
+  app.post("/api/generate-video", async (req, res) => {
+    try {
+      const { projectId } = req.body;
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+
+      // Update project status to processing
+      await storage.updateProject(projectId, { status: "processing", progress: 60 });
+
+      // Simulate video generation process using free tools
+      setTimeout(async () => {
+        // Generate script and video
+        const videoContent = await generateVideoFromScript(project.topic, project.metadata);
+        
         await storage.updateProject(projectId, { 
           status: "complete", 
           progress: 100,
@@ -139,7 +183,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           message: `Video generation completed for ${project.title}`,
           projectId: projectId,
         });
-      }, 5000);
+      }, 8000);
 
       res.json({ message: "Video generation started" });
     } catch (error) {
@@ -202,4 +246,127 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const httpServer = createServer(app);
   return httpServer;
+}
+
+// Free AI Content Generation Functions
+async function generateContentFromTopic(topic: string, category: string) {
+  // This would integrate with free AI services like:
+  // - Hugging Face Transformers
+  // - OpenAI via browser extension
+  // - Local AI models (Ollama, etc.)
+  
+  // For now, using intelligent content generation based on topic analysis
+  const keywords = extractKeywords(topic);
+  const title = generateOptimizedTitle(topic, category);
+  const description = generateDescription(topic, keywords);
+  const tags = generateTags(topic, category, keywords);
+  
+  return {
+    title,
+    description,
+    tags,
+    keywords
+  };
+}
+
+async function generateVideoFromScript(topic: string, metadata: any) {
+  // This would integrate with free video generation tools:
+  // - OpenAI TTS (free tier)
+  // - Festival/eSpeak for text-to-speech
+  // - FFmpeg for video assembly
+  // - Stable Diffusion for visuals
+  
+  return {
+    videoUrl: `/generated/video_${Date.now()}.mp4`,
+    thumbnailUrl: `/thumbnails/thumb_${Date.now()}.jpg`
+  };
+}
+
+function extractKeywords(topic: string): string[] {
+  // Simple keyword extraction - in real implementation, use NLP libraries
+  const commonWords = ['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'up', 'about', 'into', 'through', 'during', 'before', 'after', 'above', 'below', 'between', 'among', 'throughout', 'within', 'without', 'toward', 'towards', 'until', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'should', 'could', 'can', 'may', 'might', 'must', 'shall', 'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them', 'my', 'your', 'his', 'her', 'its', 'our', 'their', 'mine', 'yours', 'hers', 'ours', 'theirs'];
+  
+  return topic.toLowerCase()
+    .split(/\s+/)
+    .filter(word => word.length > 2 && !commonWords.includes(word))
+    .slice(0, 10);
+}
+
+function generateOptimizedTitle(topic: string, category: string): string {
+  const titleTemplates = {
+    Technology: [
+      "How to {topic} - Complete Guide 2024",
+      "{topic} Tutorial: Everything You Need to Know",
+      "Master {topic} in 10 Minutes",
+      "The Ultimate {topic} Guide for Beginners"
+    ],
+    Education: [
+      "Learn {topic} - Step by Step Tutorial",
+      "{topic} Explained Simply",
+      "Complete {topic} Course for Beginners",
+      "Everything About {topic} in One Video"
+    ],
+    Entertainment: [
+      "Amazing {topic} You Must See",
+      "The Best {topic} Compilation",
+      "Incredible {topic} Facts",
+      "Top 10 {topic} Moments"
+    ],
+    Lifestyle: [
+      "Life-Changing {topic} Tips",
+      "Daily {topic} Routine",
+      "Transform Your Life with {topic}",
+      "Simple {topic} Hacks"
+    ]
+  };
+  
+  const templates = titleTemplates[category as keyof typeof titleTemplates] || titleTemplates.Technology;
+  const template = templates[Math.floor(Math.random() * templates.length)];
+  
+  return template.replace('{topic}', topic);
+}
+
+function generateDescription(topic: string, keywords: string[]): string {
+  return `In this video, we'll explore ${topic} and cover everything you need to know. 
+
+🎯 What you'll learn:
+• Key concepts and fundamentals
+• Practical examples and applications
+• Best practices and tips
+• Common mistakes to avoid
+
+📌 Timestamps:
+0:00 Introduction
+1:30 Getting Started
+3:45 Main Content
+8:20 Advanced Tips
+10:15 Conclusion
+
+🔗 Resources mentioned:
+• Related tutorials
+• Helpful tools and links
+• Community discussions
+
+👍 If you found this helpful, please like and subscribe for more content!
+
+#${keywords.join(' #')}
+
+---
+Want to learn more? Check out our other videos on related topics and don't forget to hit the notification bell to stay updated with our latest content!`;
+}
+
+function generateTags(topic: string, category: string, keywords: string[]): string[] {
+  const baseTags = [
+    topic.toLowerCase(),
+    category.toLowerCase(),
+    'tutorial',
+    'guide',
+    'how to',
+    'beginner',
+    'learning',
+    'education',
+    '2024'
+  ];
+  
+  return [...baseTags, ...keywords].slice(0, 15);
 }

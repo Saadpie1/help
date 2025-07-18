@@ -8,6 +8,7 @@ import Dashboard from "@/pages/dashboard";
 import VideoCreator from "@/pages/video-creator";
 import ThumbnailStudio from "@/pages/thumbnail-studio";
 import ContentOptimizer from "@/pages/content-optimizer";
+import ContentPreview from "@/pages/content-preview";
 import UploadManager from "@/pages/upload-manager";
 import Scheduler from "@/pages/scheduler";
 import Analytics from "@/pages/analytics";
@@ -21,6 +22,7 @@ function Router() {
         <Route path="/video-creator" component={VideoCreator} />
         <Route path="/thumbnail-studio" component={ThumbnailStudio} />
         <Route path="/content-optimizer" component={ContentOptimizer} />
+        <Route path="/content-preview" component={ContentPreview} />
         <Route path="/upload-manager" component={UploadManager} />
         <Route path="/scheduler" component={Scheduler} />
         <Route path="/analytics" component={Analytics} />
