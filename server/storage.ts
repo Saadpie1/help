@@ -11,6 +11,8 @@ import {
   type User,
   type InsertUser
 } from "@shared/schema";
+import { db } from "./db";
+import { eq, desc } from "drizzle-orm";
 
 export interface IStorage {
   // User methods
@@ -298,4 +300,178 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export class DatabaseStorage implements IStorage {
+  async getUser(id: number): Promise<User | undefined> {
+    // For now, return undefined as we haven't implemented user authentication
+    return undefined;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    // For now, return undefined as we haven't implemented user authentication
+    return undefined;
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    // For now, throw an error as we haven't implemented user authentication
+    throw new Error("User creation not implemented");
+  }
+
+  async getProjects(): Promise<Project[]> {
+    const result = await db.select().from(projects).orderBy(desc(projects.createdAt));
+    return result;
+  }
+
+  async getProject(id: number): Promise<Project | undefined> {
+    const [result] = await db.select().from(projects).where(eq(projects.id, id));
+    return result || undefined;
+  }
+
+  async createProject(insertProject: InsertProject): Promise<Project> {
+    const [result] = await db
+      .insert(projects)
+      .values(insertProject)
+      .returning();
+    return result;
+  }
+
+  async updateProject(id: number, updates: Partial<Project>): Promise<Project | undefined> {
+    const [result] = await db
+      .update(projects)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(projects.id, id))
+      .returning();
+    return result || undefined;
+  }
+
+  async deleteProject(id: number): Promise<boolean> {
+    const result = await db.delete(projects).where(eq(projects.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async getSystemStatuses(): Promise<SystemStatus[]> {
+    const result = await db.select().from(systemStatus);
+    return result;
+  }
+
+  async updateSystemStatus(service: string, status: InsertSystemStatus): Promise<SystemStatus> {
+    const [existingStatus] = await db
+      .select()
+      .from(systemStatus)
+      .where(eq(systemStatus.service, service));
+
+    if (existingStatus) {
+      const [result] = await db
+        .update(systemStatus)
+        .set({
+          status: status.status,
+          message: status.message,
+          lastChecked: new Date(),
+        })
+        .where(eq(systemStatus.service, service))
+        .returning();
+      return result;
+    } else {
+      const [result] = await db
+        .insert(systemStatus)
+        .values({
+          service,
+          status: status.status,
+          message: status.message,
+        })
+        .returning();
+      return result;
+    }
+  }
+
+  async getRecentActivities(limit: number = 10): Promise<Activity[]> {
+    const result = await db
+      .select()
+      .from(activities)
+      .orderBy(desc(activities.createdAt))
+      .limit(limit);
+    return result;
+  }
+
+  async createActivity(activity: InsertActivity): Promise<Activity> {
+    const [result] = await db
+      .insert(activities)
+      .values(activity)
+      .returning();
+    return result;
+  }
+
+  async getStats(): Promise<{
+    totalVideos: number;
+    activeProjects: number;
+    totalViews: string;
+    queueCount: number;
+  }> {
+    const allProjects = await db.select().from(projects);
+    const completedProjects = allProjects.filter(p => p.status === 'complete' || p.status === 'uploaded');
+    const activeProjects = allProjects.filter(p => p.status === 'processing' || p.status === 'draft');
+    const queuedProjects = allProjects.filter(p => p.status === 'scheduled');
+
+    return {
+      totalVideos: completedProjects.length,
+      activeProjects: activeProjects.length,
+      totalViews: "125.6K", // This would be calculated from YouTube API data
+      queueCount: queuedProjects.length,
+    };
+  }
+}
+
+// Initialize database with sample data
+async function initializeDatabaseWithSampleData() {
+  try {
+    // Check if we already have data
+    const existingProjects = await db.select().from(projects);
+    const existingStatuses = await db.select().from(systemStatus);
+    
+    if (existingProjects.length === 0) {
+      // Add sample project
+      await db.insert(projects).values({
+        title: "Tech Reviews Series - Episode 1",
+        topic: "Latest smartphone reviews and comparisons",
+        category: "Technology",
+        videoLength: "10-15 minutes",
+        status: "draft",
+        metadata: {
+          title: "iPhone 15 Pro vs Samsung Galaxy S24 Ultra - Complete Comparison 2024",
+          description: "In this video, we'll explore latest smartphone reviews and comparisons and cover everything you need to know. \n\n🎯 What you'll learn:\n• Key concepts and fundamentals\n• Practical examples and applications\n• Best practices and tips\n• Common mistakes to avoid\n\n📌 Timestamps:\n0:00 Introduction\n1:30 Getting Started\n3:45 Main Content\n8:20 Advanced Tips\n10:15 Conclusion\n\n🔗 Resources mentioned:\n• Related tutorials\n• Helpful tools and links\n• Community discussions\n\n👍 If you found this helpful, please like and subscribe for more content!\n\n#smartphone #reviews #comparisons #technology #tutorial #guide #2024\n\n---\nWant to learn more? Check out our other videos on related topics and don't forget to hit the notification bell to stay updated with our latest content!",
+          tags: ["smartphone", "technology", "tutorial", "guide", "how to", "beginner", "learning", "education", "2024", "reviews", "comparisons"],
+          keywords: ["smartphone", "reviews", "comparisons", "technology", "tutorial", "guide", "how to", "beginner", "learning", "education"]
+        }
+      });
+    }
+    
+    if (existingStatuses.length === 0) {
+      // Add sample system statuses
+      await db.insert(systemStatus).values([
+        { service: "TTS Service", status: "online", message: null },
+        { service: "Video Generator", status: "online", message: null },
+        { service: "YouTube API", status: "limited", message: "Rate limited" },
+        { service: "Storage", status: "online", message: "2.1GB / 5GB" },
+      ]);
+    }
+    
+    // Add sample activities
+    const existingActivities = await db.select().from(activities);
+    if (existingActivities.length === 0) {
+      await db.insert(activities).values([
+        { type: "generate", message: "Content generation completed for tech review project", projectId: 1 },
+        { type: "upload", message: "Video uploaded to YouTube successfully", projectId: 1 },
+        { type: "schedule", message: "Video scheduled for 2:00 PM today", projectId: 1 },
+      ]);
+    }
+  } catch (error) {
+    console.error('Error initializing database:', error);
+  }
+}
+
+export const storage = new DatabaseStorage();
+
+// Initialize sample data
+initializeDatabaseWithSampleData();
